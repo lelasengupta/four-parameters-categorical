@@ -1,0 +1,84 @@
+---
+title: "Four Parameters: Categorical"
+author: "Lela Sengupta"
+format: html
+execute: 
+  echo: false
+---
+
+```{r}
+#| label: setup
+#| message: FALSE
+
+library(primer.data)
+library(tidyverse)
+library(brms)
+library(tidybayes)
+library(gtsummary)
+```
+
+```{r}
+#| label: cleaning
+#| message: FALSE
+
+nes_92 <- nes |> 
+  filter(year == 1992) |> 
+  select(sex, pres_vote) |> 
+  drop_na() |> 
+  mutate(pres_vote = case_when(
+    pres_vote == "Democrat" ~ "Clinton",
+    pres_vote == "Republican" ~ "Bush",
+    pres_vote == "Third Party" ~ "Perot",
+  ))
+```
+
+```{r}
+#| label: model
+#| cache: true
+
+fit_nes <- brm(formula = pres_vote ~ sex,
+               data = nes_92,
+               family = categorical(),
+               silent = 2,
+               refresh = 0,
+               seed = 76)
+
+```
+
+```{r}
+#| label: plot
+
+ndata <- tibble(sex = c("Female", "Male"))
+
+fit_nes |>
+add_epred_draws(newdata = ndata) |>
+select(sex, .category, .epred) |>
+ggplot(aes(x = .epred, fill = sex)) +
+geom_histogram(bins = 100) +
+facet_grid(~ .category) +
+scale_x_continuous(breaks = c(0.05, 0.3, 0.6),
+                   labels = scales::percent_format()) +
+labs(title = "Posterior for Expected Probability of Candidate Support",
+     subtitle = "Women are most likely to support Clinton",
+     x = "Posterior Probability of Expected Vote Probability",
+     y = "Count",
+     fill = "Sex")
+```
+
+
+Using a data from the National Election Studies survey, we seek to understand the relationship between sex and voting in the 1992 US Presidential election. Our results may be biased, as votes may not be reflective of what voters indicated in the survey. We created pres_vote, a multinomial logistic regression model. Women are more likely to support Clinton than men. About 48% of women claim to support Clinton, though that number could be between 43% and 58%. 
+
+[sentence with the confidence interval here]
+
+\begin{aligned}
+\rho_{clinton} &=& \frac{e^{\beta_{0, clinton} + \beta_{1, clinton} male}}{1 + e^{\beta_{0, clinton} + \beta_{1, clinton} male}}\\
+\rho_{perot} &=& \frac{e^{\beta_{0, perot} + \beta_{1, perot} male}}{1 + e^{\beta_{0, perot} + \beta_{1, perot} male}}\\
+\rho_{bush}  &=& 1 - \rho_{clinton} - \rho_{perot}
+\end{aligned}
+
+```{r}
+#| label: table
+
+tbl_regression(fit_nes)
+```
+
